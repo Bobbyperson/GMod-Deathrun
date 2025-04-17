@@ -1,5 +1,3 @@
-###This project is not under active development.
-============
-[Gamemode info here.](https://github.com/Mr-Gash/GMod-Deathrun/blob/master/deathrun/readme.txt)
+# Deathrun
 
-Facepunch thread @ http://facepunch.com/showthread.php?t=1242352
+This is a fork of Mr. Gash's deathrun with the goal of modernizing the gamemode. It's main features are refactoring of deprecated code and lives for runners (soon).
