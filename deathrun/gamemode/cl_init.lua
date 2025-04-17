@@ -30,7 +30,7 @@ include("cl_voice.lua")
 include("rtv/config.lua")
 include("rtv/cl_rtv.lua")
 if SERVER then return end
-local killerName = "Dragon Dildo"
+local killerName = "Death"
 language.Add("trigger_hurt", killerName)
 language.Add("env_explosion", killerName)
 language.Add("worldspawn", killerName)
