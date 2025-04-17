@@ -1,4 +1,4 @@
-GM.MenuText = [[Welcome to Deathrun!
+﻿GM.MenuText = [[Welcome to Deathrun!
 
 The goal of a Runner is to make it to the end of the map. The map, in most cases, is just one huge death-trap. To make it to the end, you'll have to somehow survive all the traps activated by the Death players.
 
