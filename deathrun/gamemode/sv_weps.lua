@@ -1,104 +1,111 @@
-local File = nil
+﻿local File = nil
 local Load = nil
 
 local function LoadWeapons()
+    if not File then
+        File = "deathrun/" .. game.GetMap() .. ".txt"
+    end
 
-	if not File then File = "deathrun/"..game.GetMap()..".txt" end
+    if not Load then
+        if not file.Exists(File, "DATA") then return end
+        local read = file.Read(File, "DATA")
+        read = util.JSONToTable(read)
 
-	if not Load then
-		if not file.Exists( File, "DATA" ) then return end
-		local read = file.Read( File, "DATA" )
+        if not read then
+            file.Delete(File)
+            ServerLog("Deleting " .. File .. " because of some weird as shit error.\n")
 
-		read = util.JSONToTable(read)
+            return
+        end
 
-		if not read then
-			file.Delete( File )
-			ServerLog( "Deleting "..File.." because of some weird as shit error.\n" )
-			return
-		end
-		Load = read
-	end
+        Load = read
+    end
 
-	for k, v in pairs( Load ) do
+    for k, v in pairs(Load) do
+        local ent = ents.Create(v.ent)
 
-		local ent = ents.Create( v.ent )
-		if not IsValid(ent) then
-			MsgN( "Could not create "..v.ent.."! Please fix "..File )
-			continue
-		end
-		ent:SetPos( v.pos )
-		ent:SetAngles( v.ang )
-		ent:Spawn()
+        if not IsValid(ent) then
+            MsgN("Could not create " .. v.ent .. "! Please fix " .. File)
+            continue
+        end
 
-	end
-
+        ent:SetPos(v.pos)
+        ent:SetAngles(v.ang)
+        ent:Spawn()
+    end
 end
 
-hook.Add( "OnRoundSet", "Load Weapons", function( round )
+hook.Add("OnRoundSet", "Load Weapons", function(round)
+    if round ~= ROUND_ACTIVE then return end
+    LoadWeapons()
+end)
 
-	if round != ROUND_ACTIVE then return end
+concommand.Add("dr_add_weapon", function(ply, cmd, args)
+    if not ply:IsSuperAdmin() then return end
+    if not ply:Alive() then return end
+    local wep = args[1]
+    if not wep then return end
+    local ent = ents.Create(wep)
 
-	LoadWeapons()
+    if not IsValid(ent) then
+        ply:PrintMessage(3, "Invalid entity!")
 
-end )
+        return
+    end
 
-concommand.Add( "dr_add_weapon", function( ply, cmd, args )
+    ent:SetPos(ply:GetEyeTrace().HitPos + Vector(0, 0, 50))
+    ent:Spawn()
 
-	if not ply:IsSuperAdmin() then return end
-	if not ply:Alive() then return end
+    if not ply:HasWeapon("weapon_physgun") then
+        ply:Give("weapon_physgun")
+    end
+end)
 
-	local wep = args[1]
+concommand.Add("dr_save_weapon", function(ply, cmd, args)
+    if not ply:IsSuperAdmin() then return end
+    local wep = ply:GetEyeTrace().Entity
 
-	if not wep then return end
+    if not IsValid(wep) then
+        ply:PrintMessage(3, "Invalid entity.")
 
-	local ent = ents.Create( wep )
-	if not IsValid(ent) then
-		ply:PrintMessage( 3, "Invalid entity!" )
-		return
-	end
-	ent:SetPos( ply:GetEyeTrace().HitPos + Vector( 0, 0, 50 ) )
-	ent:Spawn()
+        return
+    end
 
-	if not ply:HasWeapon( "weapon_physgun" ) then
-		ply:Give( "weapon_physgun" )
-	end
+    if not wep:IsWeapon() then
+        ply:PrintMessage(3, "You may only save weapons.")
 
-end )
+        return
+    end
 
-concommand.Add( "dr_save_weapon", function( ply, cmd, args )
+    if not File then
+        File = "deathrun/" .. game.GetMap() .. ".txt"
+    end
 
-	if not ply:IsSuperAdmin() then return end
+    local tab = {}
 
-	local wep = ply:GetEyeTrace().Entity
+    if file.Exists(File, "DATA") then
+        tab = file.Read(File, "DATA")
+        tab = util.JSONToTable(tab)
 
-	if not IsValid(wep) then ply:PrintMessage( 3, "Invalid entity." ) return end
-	if not wep:IsWeapon() then ply:PrintMessage( 3, "You may only save weapons." ) return end
+        if not tab then
+            file.Delete(File)
+            ServerLog("Deleting " .. File .. " because of some weird as shit error.\n")
+            ply:PrintMessage(3, File .. " has been deleted because of some weird as shit error.")
+            tab = {}
+        end
+    end
 
-	if not File then File = "deathrun/"..game.GetMap()..".txt" end
+    tab[#tab + 1] = {
+        ["ent"] = wep:GetClass(),
+        ["pos"] = wep:GetPos(),
+        ["ang"] = wep:GetAngles()
+    }
 
-	local tab = {}
+    if not file.Exists("deathrun", "DATA") then
+        file.CreateDir("deathrun")
+    end
 
-	if file.Exists( File, "DATA" ) then
-		tab = file.Read( File, "DATA" )
-		tab = util.JSONToTable(tab)
-
-		if not tab then
-			file.Delete( File )
-			ServerLog( "Deleting "..File.." because of some weird as shit error.\n" )
-			ply:PrintMessage( 3, File.." has been deleted because of some weird as shit error." )
-			tab = {}
-		end
-	end
-
-	tab[#tab+1] = { ["ent"] = wep:GetClass(), ["pos"] = wep:GetPos(), ["ang"] = wep:GetAngles() }
-
-	if not file.Exists( "deathrun", "DATA" ) then
-		file.CreateDir( "deathrun" )
-	end
-
-	file.Write( File, util.TableToJSON(tab) )
-	Load = tab
-
-	ply:PrintMessage( 3, "Saved "..wep:GetClass().." to "..File.."!" )
-
-end )
+    file.Write(File, util.TableToJSON(tab))
+    Load = tab
+    ply:PrintMessage(3, "Saved " .. wep:GetClass() .. " to " .. File .. "!")
+end)
