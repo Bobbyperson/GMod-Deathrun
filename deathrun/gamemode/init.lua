@@ -22,14 +22,18 @@ local uammo = CreateConVar("dr_unlimited_ammo", "1", FCVAR_ARCHIVE)
 local pickupConvar = CreateConVar("dr_allow_death_pickup", "0", FCVAR_ARCHIVE)
 local falldamage = CreateConVar("dr_realistic_fall_damage", "1", FCVAR_ARCHIVE)
 local push = CreateConVar("dr_push_collide", "0", FCVAR_ARCHIVE)
+local maxLives = CreateConVar("dr_max_lives", "3", FCVAR_ARCHIVE)
 util.AddNetworkString("Deathrun_Func")
 local meta = FindMetaTable("Player")
 gameevent.Listen("player_connect")
 gameevent.Listen("player_disconnect")
 local rModels = {}
+local playerLives = {}
+local playerLastMovement = {}
 
 for i = 1, 8 do
     rModels[#rModels + 1] = "models/player/group01/male_0" .. i .. ".mdl"
+    rModels[#rModels + 1 + 8] = "models/player/group01/female_0" .. i .. ".mdl"
 end
 
 function GM:PlayerSpawn(ply)
@@ -41,6 +45,7 @@ function GM:PlayerSpawn(ply)
         return
     end
 
+    playerLives[ply:SteamID()] = maxLives:GetInt()
     self.BaseClass:PlayerSpawn(ply)
     ply:SetHealth(ply:GetMaxHealth())
     ply:StripWeapons()
@@ -511,6 +516,36 @@ function GM:Think()
     self.BaseClass:Think()
     self:RoundThink()
     self:ConVarThink()
+
+    local validRespawnRunners = {}
+
+    for i, ply in ipairs(player.GetAll()) do
+        if not IsValid(ply) then continue end
+
+        if ply:GetVelocity():LengthSqrt() > 0 or not ply:Alive() then
+            playerLastMovement[ply:SteamID()] = engine.TickCount()
+        end
+
+        if ply:Alive() and engine.TickCount() - playerLastMovement[ply:SteamID()] > 66 * 5 and ply:Team() == TEAM_RUNNER then
+            validRespawnRunners[#validRespawnRunners + 1] = ply
+        end
+    end
+
+    for i, ply in ipairs(player.GetAll()) do
+        if not IsValid(ply) then continue end
+        if not ply:Alive() and #validRespawnRunners > 0 and ply:Team() == TEAM_RUNNER and playerLives[ply:SteamID()] > 0 then
+            local rnd = math.random(#validRespawnRunners)
+            local runner = validRespawnRunners[rnd]
+
+            if IsValid(runner) then
+                ply:Spawn()
+                ply:UnSpectate()
+                ply:SetPos(runner:GetPos())
+                ply:SetEyeAngles(runner:GetAngles())
+                playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
+            end
+        end
+    end
 end
 
 function GM:PlayerSay(ply, text)
