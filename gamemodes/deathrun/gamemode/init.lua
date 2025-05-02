@@ -526,7 +526,7 @@ function GM:Think()
             playerLastMovement[ply:SteamID()] = engine.TickCount()
         end
 
-        if ply:Alive() and engine.TickCount() - playerLastMovement[ply:SteamID()] > 66 * 5 and ply:Team() == TEAM_RUNNER then
+        if ply:Alive() and engine.TickCount() - playerLastMovement[ply:SteamID()] > 66 * 3 and ply:Team() == TEAM_RUNNER then
             validRespawnRunners[#validRespawnRunners + 1] = ply
         end
     end
@@ -542,7 +542,6 @@ function GM:Think()
                 ply:UnSpectate()
                 ply:SetPos(runner:GetPos())
                 ply:SetEyeAngles(runner:GetAngles())
-                playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
             end
         end
     end
@@ -588,3 +587,11 @@ end
 function GM:AllowPlayerPickup(ply, ent)
     return false
 end
+
+hook.add("PlayerDeath", "removeLives", function(ply)
+    playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
+    PrintMessage(HUD_PRINTTALK, ply:Nick() .. " has " .. playerLives[ply:SteamID()] .. " lives left.")
+    if playerLives[ply:SteamID()] > 0 then
+        PrintMessage(HUD_PRINTTALK, "Any alive runner can stand still to revive them.")
+    end
+end)
