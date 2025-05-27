@@ -33,7 +33,6 @@ local playerLastMovement = {}
 
 for i = 1, 8 do
     rModels[#rModels + 1] = "models/player/group01/male_0" .. i .. ".mdl"
-    rModels[#rModels + 1 + 8] = "models/player/group01/female_0" .. i .. ".mdl"
 end
 
 function GM:PlayerSpawn(ply)
