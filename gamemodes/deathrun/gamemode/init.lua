@@ -522,7 +522,7 @@ function GM:Think()
     for i, ply in ipairs(player.GetAll()) do
         if not IsValid(ply) then continue end
 
-        if ply:GetVelocity():LengthSqrt() > 0 or not ply:Alive() then
+        if ply:GetVelocity():LengthSqr() > 0 or not ply:Alive() then
             playerLastMovement[ply:SteamID()] = engine.TickCount()
         end
 
