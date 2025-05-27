@@ -1,7 +1,7 @@
 "Gamemode"
 {
 	"base"		"base"
-	"title"		"Deathrun"
+	"title"		"drlive"
 	"maps"	"^deathrun_|^dr_"
 	"author"	"Mr. Gash"
 	"menusystem"	"1"
