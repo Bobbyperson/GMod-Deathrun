@@ -32,31 +32,10 @@ local playerLives = {}
 local playerLastMovement = {}
 
 for i = 1, 8 do
-    rModels[#rModels + 1] = "models/player/group01/male_0" .. i .. ".mdl"
+    table.insert(rModels, ("models/player/group01/male_0%d.mdl"):format(i))
 end
 
-function GM:PlayerSpawn(ply)
-    ply._HasPressedKey = false
-
-    if ply:Team() == TEAM_SPECTATOR then
-        ply:Spectate(OBS_MODE_ROAMING)
-
-        return
-    end
-
-    playerLives[ply:SteamID()] = maxLives:GetInt()
-    self.BaseClass:PlayerSpawn(ply)
-    ply:SetHealth(ply:GetMaxHealth())
-    ply:StripWeapons()
-    ply:StripAmmo()
-    ply:SetWalkSpeed(260)
-    ply:SetRunSpeed(300)
-    ply:AllowFlashlight(true)
-    ply:SetArmor(0)
-    ply:SetupHands()
-    ply:SetJumpPower(190)
-    local col = team.GetColor(ply:Team())
-    ply:SetPlayerColor(Vector(col.r / 255, col.g / 255, col.b / 255))
+hook.Add("PlayerSpawn", "spawnpoint", function(ply)
     local spawns = ents.FindByClass(ply:Team() == TEAM_RUNNER and "info_player_counterterrorist" or "info_player_terrorist")
 
     if #spawns > 0 then
@@ -69,12 +48,36 @@ function GM:PlayerSpawn(ply)
             end
         end)
     end
+end)
+
+function GM:PlayerSpawn(ply)
+    ply._HasPressedKey = false
+
+    if ply:Team() == TEAM_SPECTATOR then
+        ply:Spectate(OBS_MODE_ROAMING)
+
+        return
+    end
+
+    self.BaseClass:PlayerSpawn(ply)
+    ply:SetHealth(ply:GetMaxHealth())
+    ply:StripWeapons()
+    ply:StripAmmo()
+    ply:SetWalkSpeed(260)
+    ply:SetRunSpeed(300)
+    ply:AllowFlashlight(true)
+    ply:SetArmor(0)
+    ply:SetupHands()
+    ply:SetJumpPower(190)
+    local col = team.GetColor(ply:Team())
+    ply:SetPlayerColor(Vector(col.r / 255, col.g / 255, col.b / 255))
 
     ply:SetNoCollideWithTeammates(true)
     ply:SetAvoidPlayers(push:GetInt() == 1 and true or false)
     local mdl = hook.Call("ChangePlayerModel", GAMEMODE, ply) or false
     ply:SetModel(mdl or table.Random(rModels))
 end
+
 
 function GM:PlayerSetHandsModel(ply, ent)
     local simplemodel = player_manager.TranslateToPlayerModelName(ply:GetModel())
@@ -516,16 +519,35 @@ function GM:Think()
     self:RoundThink()
     self:ConVarThink()
 
+    hook.Add("PlayerSpawn", "spawnpoint", function(ply)
+        local spawns = ents.FindByClass(ply:Team() == TEAM_RUNNER and "info_player_counterterrorist" or "info_player_terrorist")
+
+        if #spawns > 0 then
+            local pos = table.Random(spawns):GetPos()
+            ply:SetPos(pos)
+
+            timer.Simple(1, function()
+                if IsValid(ply) and ply:Alive() and pos then
+                    ply:SetPos(pos)
+                end
+            end)
+        end
+    end)
+
     local validRespawnRunners = {}
 
     for i, ply in ipairs(player.GetAll()) do
         if not IsValid(ply) then continue end
 
+        if self:GetRound() ~= ROUND_ACTIVE then
+            playerLives[ply:SteamID()] = maxLives:GetInt()
+        end
+
         if ply:GetVelocity():LengthSqr() > 0 or not ply:Alive() then
             playerLastMovement[ply:SteamID()] = engine.TickCount()
         end
 
-        if ply:Alive() and engine.TickCount() - playerLastMovement[ply:SteamID()] > 66 * 3 and ply:Team() == TEAM_RUNNER then
+        if ply:Alive() and engine.TickCount() - playerLastMovement[ply:SteamID()] > 66 * 5 and ply:Team() == TEAM_RUNNER then
             validRespawnRunners[#validRespawnRunners + 1] = ply
         end
     end
@@ -537,10 +559,14 @@ function GM:Think()
             local runner = validRespawnRunners[rnd]
 
             if IsValid(runner) then
+                hook.Remove("PlayerSpawn", "spawnpoint")
                 ply:Spawn()
                 ply:UnSpectate()
                 ply:SetPos(runner:GetPos())
                 ply:SetEyeAngles(runner:GetAngles())
+                playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
+                ply:SetModel(table.Random(rModels))
+                ply:Give("weapon_crowbar")
             end
         end
     end
@@ -581,16 +607,11 @@ function GM:PlayerInitialSpawn(ply)
         ply:SetTeam(TEAM_SPECTATOR)
         ply:Spectate(OBS_MODE_ROAMING)
     end
+
+    playerLives[ply:SteamID()] = maxLives:GetInt()
+    playerLastMovement[ply:SteamID()] = engine.TickCount()
 end
 
 function GM:AllowPlayerPickup(ply, ent)
     return false
 end
-
-hook.add("PlayerDeath", "removeLives", function(ply)
-    playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
-    PrintMessage(HUD_PRINTTALK, ply:Nick() .. " has " .. playerLives[ply:SteamID()] .. " lives left.")
-    if playerLives[ply:SteamID()] > 0 then
-        PrintMessage(HUD_PRINTTALK, "Any alive runner can stand still to revive them.")
-    end
-end)
