@@ -1,9 +1,9 @@
 "Gamemode"
 {
 	"base"		"base"
-	"title"		"drlive"
+	"title"		"deathrun"
 	"maps"	"^deathrun_|^dr_"
-	"author"	"Mr. Gash"
+	"author"	"Mr. Gash & Bobbyperson"
 	"menusystem"	"1"
 
 	"settings"
@@ -50,8 +50,17 @@
 
 		}
 
-		
 		5
+		{
+			"name"		"dr_max_lives"
+			"text"		"Amount of exra lives"
+			"help"		"The amount of lives runners get to respawn"
+			"type"		"Numeric"
+			"default"	"3"
+		}
+
+		
+		6
 		{
 			"name"		"dr_highlight_admins"
 			"text"		"Highlight Admins"
@@ -60,7 +69,7 @@
 			"default"	"1"
 		}
 
-		6
+		7
 		{
 
 			"name"		"dr_allow_death_suicide"
@@ -71,7 +80,7 @@
 
 		}
 
-		7
+		8
 		{
 
 			"name"		"dr_allow_autojump"
@@ -82,7 +91,7 @@
 
 		}
 
-		8
+		9
 		{
 
 			"name"		"dr_unlimited_ammo"
@@ -93,7 +102,7 @@
 
 		}
 
-		9
+		10
 		{
 
 			"name"		"dr_allow_death_pickup"
@@ -104,7 +113,7 @@
 
 		}
 
-		10
+		11
 		{
 
 			"name"		"dr_realistic_fall_damage"
@@ -115,7 +124,7 @@
 
 		}
 
-		11
+		12
 		{
 
 			"name"		"dr_notify_rounds_left"
@@ -126,7 +135,7 @@
 
 		}
 
-		12
+		13
 		{
 
 			"name"		"dr_push_collide"
