@@ -23,6 +23,8 @@
     })
 end
 
+DR_HeartMat = Material("icon16/heart.png")
+
 include("cl_scoreboard.lua")
 include("cl_frames.lua")
 include("menutext.lua")
@@ -84,6 +86,37 @@ function GM:HUDPaint()
     local ttw, _ = surface.GetTextSize(rt)
     local tw = hw / 2 + 5
     draw.WordBox(4, tw - ttw / 2, hy - 45, rt, "Deathrun_SmoothBig", Color(44, 44, 44, 200), Color(255, 255, 255, 255))
+
+    -- Lives display
+    if ply:Team() == TEAM_RUNNER then
+        local lives = ply:GetNWInt("DR_Lives", -1)
+        local maxLives = GetGlobalInt("dr_max_lives", 0)
+
+        if lives >= 0 and maxLives > 0 then
+            local heartSize = 16
+            local spacing = 4
+            local totalWidth = maxLives * heartSize + (maxLives - 1) * spacing
+
+            local lx = hx + hw + 20
+            local ly = hy + (hh / 2) - (heartSize / 2)
+
+            draw.RoundedBox(4, lx - 6, ly - 4, totalWidth + 12, heartSize + 8, Color(44, 44, 44, 200))
+
+            for i = 1, maxLives do
+                surface.SetMaterial(DR_HeartMat)
+
+                if i <= lives then
+                    surface.SetDrawColor(255, 80, 80, 255) -- full heart
+                else
+                    surface.SetDrawColor(100, 100, 100, 180) -- empty heart
+                end
+
+                local hxPos = lx + (i - 1) * (heartSize + spacing)
+                surface.DrawTexturedRect(hxPos, ly, heartSize, heartSize)
+            end
+        end
+    end
+
 
     if draw_keys then
         local w, h = 25, 25

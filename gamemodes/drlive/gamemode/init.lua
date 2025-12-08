@@ -22,7 +22,7 @@ local uammo = CreateConVar("dr_unlimited_ammo", "1", FCVAR_ARCHIVE)
 local pickupConvar = CreateConVar("dr_allow_death_pickup", "0", FCVAR_ARCHIVE)
 local falldamage = CreateConVar("dr_realistic_fall_damage", "1", FCVAR_ARCHIVE)
 local push = CreateConVar("dr_push_collide", "0", FCVAR_ARCHIVE)
-local maxLives = CreateConVar("dr_max_lives", "3", FCVAR_ARCHIVE)
+local maxLives = CreateConVar("dr_max_lives", "3", FCVAR_ARCHIVE, "", 0, 20)
 util.AddNetworkString("Deathrun_Func")
 local meta = FindMetaTable("Player")
 gameevent.Listen("player_connect")
@@ -30,6 +30,30 @@ gameevent.Listen("player_disconnect")
 local rModels = {}
 local playerLives = {}
 local playerLastMovement = {}
+
+local function GetSteamIDKey(ply)
+    return IsValid(ply) and ply:SteamID() or nil
+end
+
+local function SetPlayerLives(ply, lives)
+    local sid = GetSteamIDKey(ply)
+    if not sid then return end
+
+    lives = math.max(math.floor(lives or 0), 0)
+    playerLives[sid] = lives
+    ply:SetNWInt("DR_Lives", lives)
+end
+
+local function GetPlayerLives(ply, default)
+    local sid = GetSteamIDKey(ply)
+    if not sid then return default or 0 end
+
+    local val = playerLives[sid]
+    if val == nil then return default or 0 end
+
+    return val
+end
+
 
 for i = 1, 8 do
     table.insert(rModels, ("models/player/group01/male_0%d.mdl"):format(i))
@@ -49,6 +73,13 @@ hook.Add("PlayerSpawn", "spawnpoint", function(ply)
         end)
     end
 end)
+
+hook.Add("PlayerDisconnected", "DR_ClearLivesAndMovement", function(ply)
+    local sid = ply:SteamID()
+    playerLives[sid] = nil
+    playerLastMovement[sid] = nil
+end)
+
 
 function GM:PlayerSpawn(ply)
     ply._HasPressedKey = false
@@ -355,6 +386,7 @@ function GM:DoPlayerDeath(ply, attacker, cinfo)
             if last:Team() ~= t then return end
             last:Kill()
             PrintMessage(3, last:Nick() .. " has been killed for being AFK as the last member of the " .. team.GetName(t) .. " team.")
+            SetPlayerLives(last, 0)
         end)
     end
 
@@ -540,7 +572,7 @@ function GM:Think()
         if not IsValid(ply) then continue end
 
         if self:GetRound() ~= ROUND_ACTIVE then
-            playerLives[ply:SteamID()] = maxLives:GetInt()
+            SetPlayerLives(ply, maxLives:GetInt())
         end
 
         if ply:GetVelocity():LengthSqr() > 0 or not ply:Alive() then
@@ -554,19 +586,24 @@ function GM:Think()
 
     for i, ply in ipairs(player.GetAll()) do
         if not IsValid(ply) then continue end
-        if not ply:Alive() and #validRespawnRunners > 0 and ply:Team() == TEAM_RUNNER and playerLives[ply:SteamID()] > 0 then
-            local rnd = math.random(#validRespawnRunners)
-            local runner = validRespawnRunners[rnd]
 
-            if IsValid(runner) then
-                hook.Remove("PlayerSpawn", "spawnpoint")
-                ply:Spawn()
-                ply:UnSpectate()
-                ply:SetPos(runner:GetPos())
-                ply:SetEyeAngles(runner:GetAngles())
-                playerLives[ply:SteamID()] = playerLives[ply:SteamID()] - 1
-                ply:SetModel(table.Random(rModels))
-                ply:Give("weapon_crowbar")
+        if not ply:Alive() and #validRespawnRunners > 0 and ply:Team() == TEAM_RUNNER then
+            local currentLives = GetPlayerLives(ply, 0)
+
+            if currentLives > 0 then
+                local rnd = math.random(#validRespawnRunners)
+                local runner = validRespawnRunners[rnd]
+
+                if IsValid(runner) then
+                    hook.Remove("PlayerSpawn", "spawnpoint")
+                    ply:Spawn()
+                    ply:UnSpectate()
+                    ply:SetPos(runner:GetPos())
+                    ply:SetEyeAngles(runner:GetAngles())
+                    SetPlayerLives(ply, currentLives - 1)
+                    ply:SetModel(table.Random(rModels))
+                    ply:Give("weapon_crowbar")
+                end
             end
         end
     end
@@ -592,11 +629,20 @@ ConVarCallback("dr_allow_autojump", function(cvar, old, new)
     SetGlobalInt("dr_allow_autojump", tonumber(new or 1) or 1)
 end)
 
+ConVarCallback("dr_max_lives", function(cvar, old, new)
+    SetGlobalInt("dr_max_lives", tonumber(new or maxLives:GetInt()) or maxLives:GetInt())
+    for i, ply in ipairs(player.GetAll()) do
+        SetPlayerLives(ply, tonumber(new or maxLives:GetInt()) or maxLives:GetInt())
+    end
+end)
+
+
 function GM:Initialize()
     RunConsoleCommand("sv_sticktoground", "0")
     SetGlobalInt("dr_highlight_admins", highlight:GetInt())
     SetGlobalInt("dr_rounds_left", rounds:GetInt())
     SetGlobalInt("dr_allow_autojump", bhop:GetInt())
+    SetGlobalInt("dr_max_lives", maxLives:GetInt())
 end
 
 function GM:PlayerInitialSpawn(ply)
@@ -608,7 +654,7 @@ function GM:PlayerInitialSpawn(ply)
         ply:Spectate(OBS_MODE_ROAMING)
     end
 
-    playerLives[ply:SteamID()] = maxLives:GetInt()
+    SetPlayerLives(ply, maxLives:GetInt())
     playerLastMovement[ply:SteamID()] = engine.TickCount()
 end
 
