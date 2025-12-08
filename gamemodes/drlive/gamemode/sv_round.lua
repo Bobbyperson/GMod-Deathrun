@@ -151,7 +151,28 @@ local HasDoneCheck = false
 
 GM.ThinkRoundFunctions = {
     [ROUND_WAITING] = function(gm)
-        if #player.GetAll() < minplayers:GetInt() then return end
+        local plys = player.GetAll()
+        local count = #plys
+
+        if count == 1 then
+            local ply = plys[1]
+
+            if IsValid(ply) then
+                if ply:Team() ~= TEAM_RUNNER then
+                    ply:SetTeam(TEAM_RUNNER)
+                end
+
+                if not ply:Alive() or ply:GetObserverMode() ~= OBS_MODE_NONE then
+                    ply:UnSpectate()
+                    ply:Spawn()
+                end
+            end
+
+            return
+        end
+
+        if count < minplayers:GetInt() then return end
+
         gm:SetRound(ROUND_PREPARING)
     end,
     [ROUND_PREPARING] = function(gm)
