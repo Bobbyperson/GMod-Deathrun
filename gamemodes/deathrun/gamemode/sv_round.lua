@@ -11,18 +11,19 @@ function GM:SetRoundTime(time)
 end
 
 CreateConVar("dr_death_rate", 0.25, FCVAR_ARCHIVE)
-CreateConVar("dr_death_max", 6, FCVAR_ARCHIVE)
+CreateConVar("dr_death_max", 3, FCVAR_ARCHIVE)
 
 function GM:DoWeNeedDeath()
-    local rate = math.Clamp(GetConVar("dr_death_rate"):GetInt(), 0.1, 0.9)
+    local rate = math.Clamp(GetConVar("dr_death_rate"):GetFloat(), 0.1, 0.9)
     local plys = #player.GetAll()
     local md = math.max(GetConVar("dr_death_max"):GetInt(), 2)
+
     local num = #team.GetPlayers(TEAM_DEATH)
     local need = math.floor(math.Clamp(plys * rate, 1, md))
-    if num >= need then return false end
 
-    return true
+    return num < need
 end
+
 
 function GM:SortPlayers(freezePlayers)
     local pool = {}

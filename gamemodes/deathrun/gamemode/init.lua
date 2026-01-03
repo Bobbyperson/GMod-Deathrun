@@ -30,6 +30,8 @@ gameevent.Listen("player_disconnect")
 local rModels = {}
 local playerLives = {}
 local playerLastMovement = {}
+local playerDeathTime = {}
+
 
 local function GetSteamIDKey(ply)
     return IsValid(ply) and ply:SteamID() or nil
@@ -78,6 +80,7 @@ hook.Add("PlayerDisconnected", "DR_ClearLivesAndMovement", function(ply)
     local sid = ply:SteamID()
     playerLives[sid] = nil
     playerLastMovement[sid] = nil
+    playerDeathTime[sid] = nil
 end)
 
 
@@ -391,6 +394,7 @@ function GM:DoPlayerDeath(ply, attacker, cinfo)
     end
 
     ply._unspec_deathrag = CurTime() + 2
+    playerDeathTime[ply:SteamID()] = CurTime()
 end
 
 local function NextPlayer(ply)
@@ -588,6 +592,14 @@ function GM:Think()
         if not IsValid(ply) then continue end
 
         if not ply:Alive() and #validRespawnRunners > 0 and ply:Team() == TEAM_RUNNER then
+            local sid = ply:SteamID()
+            local dt = playerDeathTime[sid] or CurTime()
+
+            -- must be dead for at least 1 second
+            if CurTime() - dt < 1 then
+                continue
+            end
+
             local currentLives = GetPlayerLives(ply, 0)
 
             if currentLives > 0 then
