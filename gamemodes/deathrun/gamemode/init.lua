@@ -61,8 +61,172 @@ for i = 1, 8 do
     table.insert(rModels, ("models/player/group01/male_0%d.mdl"):format(i))
 end
 
+local spawnGroupCache
+
+-- Splits spawns into two groups by cutting the longest edge of their minimum
+-- spanning tree (single-linkage clustering on the biggest gap). Used when
+-- TeamNum doesn't separate runner/death spawns: TF2 deathrun maps tuck the
+-- lone Death spawn away from the runner spawn cluster, so the isolated
+-- spawn(s) split off cleanly. Returns the larger group, then the smaller.
+local function ClusterSpawnsByDistance(spawns)
+    local n = #spawns
+    if n <= 1 then return spawns, {} end
+
+    local pos = {}
+    for i, ent in ipairs(spawns) do
+        pos[i] = ent:GetPos()
+    end
+
+    local inTree = { [1] = true }
+    local minDist, parent = {}, {}
+
+    for i = 2, n do
+        minDist[i] = pos[1]:Distance(pos[i])
+        parent[i] = 1
+    end
+
+    local edges = {}
+
+    for _ = 2, n do
+        local best, bestDist = nil, math.huge
+
+        for i = 2, n do
+            if not inTree[i] and minDist[i] < bestDist then
+                best, bestDist = i, minDist[i]
+            end
+        end
+
+        if not best then break end
+        inTree[best] = true
+        edges[#edges + 1] = { a = parent[best], b = best, dist = bestDist }
+
+        for i = 2, n do
+            if not inTree[i] then
+                local d = pos[best]:Distance(pos[i])
+
+                if d < minDist[i] then
+                    minDist[i] = d
+                    parent[i] = best
+                end
+            end
+        end
+    end
+
+    local cutIdx, cutDist = nil, -1
+
+    for idx, e in ipairs(edges) do
+        if e.dist > cutDist then
+            cutIdx, cutDist = idx, e.dist
+        end
+    end
+
+    if not cutIdx then return spawns, {} end
+
+    local adj = {}
+    for i = 1, n do
+        adj[i] = {}
+    end
+
+    for idx, e in ipairs(edges) do
+        if idx ~= cutIdx then
+            table.insert(adj[e.a], e.b)
+            table.insert(adj[e.b], e.a)
+        end
+    end
+
+    local visited, stack = { [1] = true }, { 1 }
+
+    while #stack > 0 do
+        local cur = table.remove(stack)
+
+        for _, nb in ipairs(adj[cur]) do
+            if not visited[nb] then
+                visited[nb] = true
+                stack[#stack + 1] = nb
+            end
+        end
+    end
+
+    local groupA, groupB = {}, {}
+
+    for i = 1, n do
+        if visited[i] then
+            groupA[#groupA + 1] = spawns[i]
+        else
+            groupB[#groupB + 1] = spawns[i]
+        end
+    end
+
+    if #groupB > #groupA then return groupB, groupA end
+
+    return groupA, groupB
+end
+
+-- Classic GMod deathrun maps use info_player_counterterrorist/info_player_terrorist.
+-- Maps ported from TF2 (e.g. dr_playstation) instead carry info_player_teamspawn
+-- grouped by TF2 TeamNum; the TeamNum with the most spawns is treated as the
+-- runner team, matching TF2 deathrun's convention of a single Death spawn.
+local function ResolveSpawnGroups(teamspawns)
+    if spawnGroupCache then return spawnGroupCache end
+
+    local counts, distinctTeams = {}, 0
+
+    for _, ent in ipairs(teamspawns) do
+        local tn = ent:GetTeamNumber()
+        if not counts[tn] then distinctTeams = distinctTeams + 1 end
+        counts[tn] = (counts[tn] or 0) + 1
+    end
+
+    local runnerTeamNum, best = nil, -1
+
+    for tn, n in pairs(counts) do
+        if n > best then
+            runnerTeamNum, best = tn, n
+        end
+    end
+
+    local runner, death = {}, {}
+
+    if distinctTeams > 1 then
+        for _, ent in ipairs(teamspawns) do
+            if ent:GetTeamNumber() == runnerTeamNum then
+                runner[#runner + 1] = ent
+            else
+                death[#death + 1] = ent
+            end
+        end
+    end
+
+    -- TeamNum didn't yield two usable groups (e.g. the map only bakes in
+    -- runner spawns and Death's position is set by a SourceMod plugin on
+    -- real TF2 servers) -- fall back to splitting on physical isolation.
+    if #runner == 0 or #death == 0 then
+        runner, death = ClusterSpawnsByDistance(teamspawns)
+    end
+
+    spawnGroupCache = { runner = runner, death = death }
+
+    return spawnGroupCache
+end
+
+local function GetSpawnEntities(team)
+    local classicClass = team == TEAM_RUNNER and "info_player_counterterrorist" or "info_player_terrorist"
+    local spawns = ents.FindByClass(classicClass)
+    if #spawns > 0 then return spawns end
+
+    local teamspawns = ents.FindByClass("info_player_teamspawn")
+    if #teamspawns == 0 then return spawns end
+
+    local groups = ResolveSpawnGroups(teamspawns)
+    local result = team == TEAM_RUNNER and groups.runner or groups.death
+
+    if #result == 0 then return teamspawns end
+
+    return result
+end
+
 hook.Add("PlayerSpawn", "spawnpoint", function(ply)
-    local spawns = ents.FindByClass(ply:Team() == TEAM_RUNNER and "info_player_counterterrorist" or "info_player_terrorist")
+    local spawns = GetSpawnEntities(ply:Team())
 
     if #spawns > 0 then
         local pos = table.Random(spawns):GetPos()
@@ -550,13 +714,30 @@ function GM:PlayerDeathThink(ply)
     return false
 end
 
+function PlayerStandingOnWorld(ply)
+    if not IsValid(ply) or not ply:IsPlayer() then return false end
+    if not ply:OnGround() then return false end
+
+    local trace = util.TraceHull({
+        start = ply:GetPos(),
+        endpos = ply:GetPos() - Vector(0, 0, 10),
+        mins = ply:OBBMins(),
+        maxs = ply:OBBMaxs(),
+        filter = ply,
+        mask = MASK_PLAYERSOLID
+    })
+
+    return trace.HitWorld == true
+end
+
+
 function GM:Think()
     self.BaseClass:Think()
     self:RoundThink()
     self:ConVarThink()
 
     hook.Add("PlayerSpawn", "spawnpoint", function(ply)
-        local spawns = ents.FindByClass(ply:Team() == TEAM_RUNNER and "info_player_counterterrorist" or "info_player_terrorist")
+        local spawns = GetSpawnEntities(ply:Team())
 
         if #spawns > 0 then
             local pos = table.Random(spawns):GetPos()
